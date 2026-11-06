@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ion-track-mc · Proton tracks in water, collision by collision</title>
+<meta name="description" content="ion-track-mc: an educational event-by-event Monte Carlo code that follows a proton in liquid water one collision at a time and computes dose, stopping power, LET and lineal energy.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b1d3a'/%3E%3Cpath d='M4 20 L10 17 L15 19 L21 13 L28 12' stroke='%23f5a524' stroke-width='2.4' fill='none'/%3E%3Ccircle cx='10' cy='17' r='2.6' fill='%23c8364b'/%3E%3Ccircle cx='21' cy='13' r='2.6' fill='%231597b5'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --navy: #0b1d3a; --navy-2: #16305c; --amber: #f5a524; --amber-soft: #fff4dc;
+    --cyan: #1597b5; --red: #c8364b; --green: #2e8b57; --violet: #7b4fa0; --brown: #8c5a2b;
+    --ink: #1d2433; --muted: #5b6475; --bg: #ffffff; --panel: #f4f6fa; --border: #d9dee6;
+    --radius: 12px; --maxw: 1120px;
+    --mono: "Source Code Pro", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 "Source Sans 3", "Source Sans Pro", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  /* Bilingual content: every text exists twice, the inactive language is hidden. */
+  html[lang="en"] [lang="es"], html[lang="es"] [lang="en"] { display: none !important; }
+  a { color: var(--navy-2); }
+  a:hover { color: var(--cyan); }
+  code { font-family: var(--mono); font-size: .9em; background: var(--panel); border-radius: 5px; padding: 1px 5px; color: var(--navy-2); }
+  sub, sup { line-height: 0; }
+
+  /* ---------- top bar ---------- */
+  .topbar { position: sticky; top: 0; z-index: 20; background: rgba(11, 29, 58, .97); color: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
+  .topbar .inner { max-width: var(--maxw); margin: 0 auto; padding: 0 16px; height: 52px; display: flex; align-items: center; gap: 18px; }
+  .brand { font-weight: 700; color: #fff; text-decoration: none; font-family: var(--mono); letter-spacing: -.02em; white-space: nowrap; }
+  .brand span { color: var(--amber); }
+  .topbar nav { display: flex; gap: 2px; overflow-x: auto; flex: 1; scrollbar-width: none; }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .topbar nav a { color: #c9d4ee; text-decoration: none; font-size: .9rem; padding: 6px 9px; border-radius: 6px; white-space: nowrap; }
+  .topbar nav a:hover, .topbar nav a.active { color: #fff; background: rgba(255, 255, 255, .1); }
+  .lang-switch { display: inline-flex; border: 1px solid rgba(255, 255, 255, .35); border-radius: 6px; overflow: hidden; flex: none; }
+  .lang-switch button { font: inherit; font-size: .8rem; font-weight: 700; border: 0; padding: 4px 9px; cursor: pointer; background: transparent; color: #c9d4ee; }
+  .lang-switch button[aria-pressed="true"] { background: var(--amber); color: var(--navy); }
+  .lang-switch button { display: inline-flex; align-items: center; gap: 5px; }
+  .lang-switch .flag { width: 18px; height: 12px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); flex: none; }
+  @media (max-width: 760px) { .topbar nav { display: none; } .topbar .inner { justify-content: space-between; } }
+
+  /* ---------- hero ---------- */
+  .hero { background: radial-gradient(circle at 80% 15%, #1c3d74 0%, var(--navy) 62%); color: #e8eefc; }
+  .hero .inner { max-width: var(--maxw); margin: 0 auto; padding: 48px 16px 40px; }
+  .hero .kicker { color: var(--amber); text-transform: uppercase; letter-spacing: .12em; font-size: .82rem; font-weight: 700; margin: 0 0 8px; }
+  .hero h1 { margin: 0; font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.05; color: #fff; font-family: var(--mono); letter-spacing: -.03em; }
+  .hero .tagline { font-size: clamp(1.1rem, 2.4vw, 1.45rem); color: #fff; margin: 14px 0 10px; max-width: 760px; line-height: 1.4; }
+  .hero .tagline strong { color: var(--amber); font-weight: 600; }
+  .hero p.lede { color: #c9d4ee; max-width: 760px; margin: 0 0 22px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; font-size: .95rem;
+    padding: 9px 16px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .35); color: #fff; transition: .15s; }
+  .btn:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+  .btn.primary { background: var(--amber); border-color: var(--amber); color: var(--navy); }
+  .btn.primary:hover { background: #ffb940; color: var(--navy); }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .facts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 32px; }
+  .fact { border-left: 3px solid var(--amber); padding: 2px 0 2px 12px; }
+  .fact b { display: block; color: #fff; font-size: 1.3rem; line-height: 1.2; }
+  .fact span { color: #9fb0d4; font-size: .85rem; }
+  @media (max-width: 760px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  /* ---------- sections ---------- */
+  section.block { max-width: var(--maxw); margin: 0 auto; padding: 52px 16px 8px; }
+  .eyebrow { color: var(--cyan); text-transform: uppercase; letter-spacing: .1em; font-size: .8rem; font-weight: 700; margin: 0 0 4px; }
+  section.block > h2 { margin: 0 0 12px; color: var(--navy); font-size: clamp(1.5rem, 3.2vw, 2.1rem); line-height: 1.2; }
+  h3 { color: var(--navy-2); margin: 26px 0 8px; font-size: 1.2rem; }
+  .intro { max-width: 820px; color: var(--ink); }
+  .muted { color: var(--muted); }
+  .small { font-size: .88rem; }
+  .cap { font-size: .88rem; color: var(--muted); margin: 8px 0 0; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 900px) { .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--panel); border-radius: var(--radius); padding: 16px 18px; }
+  .card h4 { margin: 0 0 4px; color: var(--navy); font-size: 1.02rem; }
+  .card p { margin: 0; font-size: .94rem; }
+  .card .where { margin-top: 8px; font-size: .8rem; color: var(--muted); }
+  .key { background: var(--navy); color: #e8eefc; border-radius: var(--radius); padding: 14px 20px; margin: 18px 0; }
+  .key strong { color: var(--amber); }
+  .box { background: var(--amber-soft); border-radius: var(--radius); padding: 12px 18px; margin: 16px 0; border-left: 4px solid var(--amber); }
+  .figure { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; min-width: 0; }
+  .plot { width: 100%; height: 400px; }
+  .plot.tall { height: 470px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: .88rem; border: 0; padding: 5px 12px; cursor: pointer; background: #fff; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--navy); color: #fff; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 8px; }
+  .toolbar label { font-size: .9rem; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  table.data { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  table.data th { background: var(--navy); color: #fff; text-align: left; font-weight: 600; }
+  table.data th, table.data td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.data tr:nth-child(even) td { background: var(--panel); }
+  table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+  details { background: var(--panel); border-radius: var(--radius); padding: 10px 16px; margin: 14px 0; }
+  details summary { cursor: pointer; font-weight: 600; color: var(--navy-2); }
+  details[open] summary { margin-bottom: 8px; }
+
+  /* ---------- track animation ---------- */
+  .tracker { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .tracker .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .tracker select { font: inherit; font-size: .9rem; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--ink); max-width: 100%; }
+  .icon-btn { font: inherit; font-size: .9rem; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--ink); cursor: pointer; }
+  .icon-btn:hover { border-color: var(--navy-2); }
+  .icon-btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); min-width: 92px; justify-content: center; }
+  .speed { display: inline-flex; align-items: center; gap: 6px; font-size: .88rem; color: var(--muted); }
+  .speed input { width: 110px; accent-color: var(--navy); }
+  .canvas-wrap { position: relative; }
+  #track-canvas { display: block; width: 100%; height: 330px; cursor: crosshair; }
+  #track-tip { position: absolute; pointer-events: none; background: var(--navy); color: #fff; font-size: .8rem; line-height: 1.35;
+    padding: 6px 9px; border-radius: 6px; white-space: nowrap; opacity: 0; transition: opacity .1s; z-index: 2; }
+  .tracker .readout { display: grid; grid-template-columns: 1.1fr 2fr; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--border); }
+  @media (max-width: 760px) { .tracker .readout { grid-template-columns: minmax(0, 1fr); } #track-canvas { height: 260px; } }
+  .hud { font-variant-numeric: tabular-nums; font-size: .92rem; }
+  .hud div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--border); padding: 2px 0; }
+  .hud b { color: var(--navy); }
+  .tally { display: grid; align-content: start; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 14px; }
+  .chip { display: flex; align-items: center; gap: 8px; font-size: .88rem; cursor: pointer; user-select: none; border-radius: 6px; padding: 3px 6px; border: 1px solid transparent; background: none; font-family: inherit; color: inherit; text-align: left; }
+  .chip:hover { border-color: var(--border); }
+  .chip.off { opacity: .35; }
+  .chip .dot { flex: none; margin: 0; }
+  .chip .bar { flex: 1; height: 6px; background: var(--panel); border-radius: 3px; overflow: hidden; min-width: 30px; }
+  .chip .bar i { display: block; height: 100%; width: 0; transition: width .15s; }
+  .chip .n { font-variant-numeric: tabular-nums; min-width: 2.6em; text-align: right; color: var(--muted); }
+
+  /* ---------- steps ---------- */
+  .steps { counter-reset: step; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 22px; padding: 0; list-style: none; }
+  @media (max-width: 760px) { .steps { grid-template-columns: minmax(0, 1fr); } }
+  .steps li { counter-increment: step; position: relative; padding: 2px 0 2px 46px; }
+  .steps li::before { content: counter(step); position: absolute; left: 0; top: 2px; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--navy); color: var(--amber); font-weight: 700; display: grid; place-items: center; }
+  .steps li b { color: var(--navy); }
+
+  /* ---------- architecture ---------- */
+  .arch svg { width: 100%; height: auto; display: block; }
+  .arch text { font-family: "Source Sans 3", system-ui, sans-serif; }
+  .flow { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .flow li { background: var(--panel); border-left: 4px solid var(--cyan); border-radius: 8px; padding: 8px 12px; font-size: .94rem; }
+  .flow li.decide { border-left-color: var(--amber); }
+  .flow li.loop { border-left-color: var(--navy); background: #e9edf5; }
+
+  /* ---------- code ---------- */
+  pre.code { position: relative; background: var(--navy); color: #e8eefc; border-radius: 10px; padding: 14px 16px; overflow-x: auto;
+    font: .86rem/1.5 var(--mono); margin: 10px 0; }
+  pre.code .c { color: #8fa3cc; }
+  .code-wrap { position: relative; }
+  .code-wrap pre.code { padding-right: 76px; }
+  #code-pip { white-space: pre-wrap; overflow-wrap: anywhere; }
+  pre.code .k { color: var(--amber); }
+  .copy { position: absolute; top: 8px; right: 8px; font: 600 .75rem system-ui, sans-serif; padding: 3px 9px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, .3);
+    background: rgba(255, 255, 255, .08); color: #fff; cursor: pointer; }
+  .copy:hover { background: rgba(255, 255, 255, .2); }
+  .nb { display: flex; flex-direction: column; gap: 6px; }
+  .nb .meta { font-size: .8rem; color: var(--muted); }
+  .nb .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: .84rem; font-weight: 600; text-decoration: none; padding: 4px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: #fff; color: var(--navy-2); }
+  .pill:hover { border-color: var(--navy-2); color: var(--navy); }
+  .pill.colab { background: var(--amber-soft); border-color: #f2d595; }
+  .tutorial { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; align-items: center; margin-top: 8px; }
+  @media (max-width: 760px) { .tutorial { grid-template-columns: minmax(0, 1fr); } }
+  .tutorial .cover { display: block; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);
+    box-shadow: 0 6px 22px rgba(11, 29, 58, .18); transition: transform .15s, box-shadow .15s; }
+  .tutorial .cover:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(11, 29, 58, .25); }
+  .tutorial .cover img { display: block; width: 100%; height: auto; }
+  .toc { columns: 2; column-gap: 24px; padding-left: 1.3em; margin: 12px 0 18px; }
+  .toc li { margin: 3px 0; break-inside: avoid; }
+  .toc li::marker { color: var(--cyan); font-weight: 700; }
+  .limits { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 22px; }
+  @media (max-width: 760px) { .limits { grid-template-columns: minmax(0, 1fr); } }
+  .limits li { border-left: 3px solid var(--red); padding: 2px 0 2px 12px; font-size: .95rem; }
+  .limits li b { color: var(--navy); }
+
+  /* ---------- cite & footer ---------- */
+  .cite-box { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  .cite-box p, .cite-box pre { margin: 0; padding-right: 96px; overflow-wrap: anywhere; }
+  .cite-box pre { font: .82rem/1.45 var(--mono); white-space: pre-wrap; }
+  .cite-box .copy { background: #fff; color: var(--navy-2); border-color: var(--border); }
+  .cite-box .copy:hover { border-color: var(--navy-2); }
+  footer.site { margin-top: 56px; background: var(--navy); color: #9fb0d4; font-size: .88rem; }
+  footer.site .inner { max-width: var(--maxw); margin: 0 auto; padding: 22px 16px 28px; display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: space-between; }
+  footer.site a { color: #fff; }
+  #toast { position: fixed; right: 16px; bottom: 16px; background: var(--navy); color: #fff; padding: 8px 14px; border-radius: 6px; box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
+    opacity: 0; transform: translateY(10px); transition: .2s; pointer-events: none; z-index: 30; }
+  #toast.show { opacity: 1; transform: none; }
+  noscript p { background: var(--amber-soft); padding: 10px 16px; margin: 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="inner">
+    <a class="brand" href="#top">ion-track-<span>mc</span></a>
+    <nav aria-label="Sections">
+      <a href="#track"><span lang="en">Track</span><span lang="es">Traza</span></a>
+      <a href="#what"><span lang="en">Outputs</span><span lang="es">Resultados</span></a>
+      <a href="#physics"><span lang="en">Physics</span><span lang="es">Física</span></a>
+      <a href="#validation"><span lang="en">Validation</span><span lang="es">Validación</span></a>
+      <a href="#dose"><span lang="en">Dose</span><span lang="es">Dosis</span></a>
+      <a href="#code"><span lang="en">Code</span><span lang="es">Código</span></a>
+      <a href="#start"><span lang="en">Get started</span><span lang="es">Empezar</span></a>
+      <a href="#tutorial">Tutorial</a>
+      <a href="#cite"><span lang="en">Cite</span><span lang="es">Citar</span></a>
+    </nav>
+    <div class="lang-switch" role="group" aria-label="Language / Idioma">
+      <button type="button" data-lang="es" aria-pressed="true"><svg class="flag" viewBox="0 0 18 12" aria-hidden="true"><rect width="18" height="12" fill="#74acdf"/><rect y="4" width="18" height="4" fill="#fff"/><circle cx="9" cy="6" r="1.4" fill="#f6b40e"/></svg>ES</button><button type="button" data-lang="en" aria-pressed="false"><svg class="flag" viewBox="0 0 60 30" preserveAspectRatio="none" aria-hidden="true"><clipPath id="ukc"><path d="M30,15h30v15zv15h-30zh-30v-15zv-15h30z"/></clipPath><rect width="60" height="30" fill="#012169"/><path d="M0,0 60,30M60,0 0,30" stroke="#fff" stroke-width="6"/><path d="M0,0 60,30M60,0 0,30" clip-path="url(#ukc)" stroke="#c8102e" stroke-width="4"/><path d="M30,0v30M0,15h60" stroke="#fff" stroke-width="10"/><path d="M30,0v30M0,15h60" stroke="#c8102e" stroke-width="6"/></svg>EN</button>
+    </div>
+  </div>
+</header>
+<noscript><p>This page needs JavaScript for its animation and plots. / Esta página necesita JavaScript para la animación y los gráficos.</p></noscript>
+
+<!-- ======================================================= HERO -->
+<div class="hero" id="top">
+  <div class="inner">
+    <p class="kicker"><span lang="en">Educational Monte Carlo code · Open source</span><span lang="es">Código Monte Carlo educativo · Código abierto</span></p>
+    <h1>ion-track-mc</h1>
+    <p class="tagline">
+      <span lang="en">The track of a <strong>proton in liquid water</strong>, followed <strong>one collision at a time</strong>, and turned into dose, stopping power, LET and lineal energy.</span>
+      <span lang="es">La traza de un <strong>protón en agua líquida</strong>, seguida <strong>colisión por colisión</strong>, y convertida en dosis, poder de frenado, TEL y energía lineal.</span>
+    </p>
+    <p class="lede">
+      <span lang="en">An event-by-event (track-structure) Monte Carlo code that follows the model of the research code <b>TILDA-V</b> (Quinto <i>et al.</i> 2017) and uses its cross sections, in a form small and readable enough to study line by line. Written in Python for a radiobiology course: open any file, follow the physics, and see where each number in a plot comes from.</span>
+      <span lang="es">Un código Monte Carlo evento por evento (de estructura de trazas) que sigue el modelo del código de investigación <b>TILDA-V</b> (Quinto <i>et al.</i> 2017) y usa sus secciones eficaces, en una forma lo bastante pequeña y legible para estudiarla línea por línea. Escrito en Python para un curso de radiobiología: cualquier archivo se puede abrir, seguir la física y ver de dónde sale cada número de un gráfico.</span>
+    </p>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/juanmontiz/ion-track-mc" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span lang="en">Source code on GitHub</span><span lang="es">Código en GitHub</span>
+      </a>
+      <a class="btn" href="#start">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        <span lang="en">Run it in Colab</span><span lang="es">Correrlo en Colab</span>
+      </a>
+      <a class="btn" data-href-en="docs/tutorial.pdf" data-href-es="docs/tutorial_es.pdf" href="docs/tutorial.pdf" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span lang="en">Tutorial slides (PDF)</span><span lang="es">Tutorial en diapositivas (PDF)</span>
+      </a>
+    </div>
+    <div class="facts">
+      <div class="fact"><b>H⁺ / H⁰</b><span lang="en">projectile charge states</span><span lang="es">estados de carga del proyectil</span></div>
+      <div class="fact"><b>5</b><span lang="en">collision processes</span><span lang="es">procesos de colisión</span></div>
+      <div class="fact"><b>8 keV – 300 MeV</b><span lang="en">tabulated energy range</span><span lang="es">rango de energía tabulado</span></div>
+      <div class="fact"><b>178</b><span lang="en">automated tests</span><span lang="es">tests automáticos</span></div>
+      <div class="fact"><b>MIT</b><span lang="en">licence · Python ≥ 3.10</span><span lang="es">licencia · Python ≥ 3.10</span></div>
+    </div>
+  </div>
+</div>
+
+<main>
+<!-- ======================================================= TRACK -->
+<section class="block" id="track">
+  <p class="eyebrow"><span lang="en">Event by event</span><span lang="es">Evento por evento</span></p>
+  <h2><span lang="en">Watch a track being built</span><span lang="es">Cómo se construye una traza</span></h2>
+  <p class="intro">
+    <span lang="en">Each dot is one collision of the proton with a water molecule, in the order the code samples it, coloured by process. Between collisions the proton flies in a straight line and loses no energy. The path turns <b style="color:#c98a10">amber</b> while the projectile travels as neutral hydrogen (H⁰) after capturing an electron. Hover over a collision to see its details; click a process to hide it.</span>
+    <span lang="es">Cada punto es una colisión del protón con una molécula de agua, en el orden en que el código la muestrea, coloreada según el proceso. Entre colisiones el protón vuela en línea recta y no pierde energía. El camino se vuelve <b style="color:#c98a10">ámbar</b> mientras el proyectil viaja como hidrógeno neutro (H⁰), después de capturar un electrón. Al pasar el cursor sobre una colisión se ven sus datos; un clic en un proceso lo oculta.</span>
+  </p>
+
+  <div class="tracker">
+    <div class="controls">
+      <select id="track-preset" aria-label="Track">
+        <option value="t15_25" data-en="15 keV proton · first 25 nm" data-es="Protón de 15 keV · primeros 25 nm"></option>
+        <option value="t15_full" data-en="15 keV proton · whole track, until it stops" data-es="Protón de 15 keV · traza completa, hasta detenerse"></option>
+        <option value="t500_130" data-en="500 keV proton · first 131 nm" data-es="Protón de 500 keV · primeros 131 nm"></option>
+      </select>
+      <button class="icon-btn primary" id="track-play" type="button"></button>
+      <button class="icon-btn" id="track-step" type="button" title="+1">+1</button>
+      <button class="icon-btn" id="track-reset" type="button">↺</button>
+      <button class="icon-btn" id="track-end" type="button">⇥</button>
+      <label class="speed"><span lang="en">speed</span><span lang="es">velocidad</span>
+        <input type="range" id="track-speed" min="0" max="100" value="45"></label>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="track-canvas" aria-label="Animated proton track"></canvas>
+      <div id="track-tip" role="status"></div>
+    </div>
+    <div class="readout">
+      <div class="hud" id="track-hud"></div>
+      <div class="tally" id="track-tally"></div>
+    </div>
+  </div>
+  <p class="cap" id="track-caption"></p>
+</section>
+
+<!-- ======================================================= WHAT -->
+<section class="block" id="what">
+  <p class="eyebrow"><span lang="en">What the code simulates</span><span lang="es">Qué simula el código</span></p>
+  <h2><span lang="en">From a list of deposits to radiobiology</span><span lang="es">De una lista de depósitos a la radiobiología</span></h2>
+  <p class="intro">
+    <span lang="en">A proton with an energy from about 10 keV upwards enters a block of water. On its way it collides with water molecules thousands of times: in each collision it loses a little energy, may knock out an electron, may capture an electron and continue as neutral hydrogen, or may be slightly deflected, until it stops. The code follows <b>every one of those collisions individually</b>. The result is a list of energy deposits — <i>how much</i>, <i>where</i> and <i>by which process</i> — and everything else is computed from that list.</span>
+    <span lang="es">Un protón de unos 10 keV o más entra en un bloque de agua. En su camino choca con moléculas de agua miles de veces: en cada colisión pierde un poco de energía, puede arrancar un electrón, puede capturar un electrón y seguir como hidrógeno neutro, o puede desviarse levemente, hasta detenerse. El código sigue <b>cada una de esas colisiones por separado</b>. El resultado es una lista de depósitos de energía —<i>cuánta</i>, <i>dónde</i> y <i>por qué proceso</i>— y todo lo demás se calcula a partir de esa lista.</span>
+  </p>
+  <div class="grid-3" style="margin-top:18px">
+    <div class="card"><h4><span lang="en">Track picture</span><span lang="es">Imagen de la traza</span></h4>
+      <p><span lang="en">Every collision of one proton, coloured by process.</span><span lang="es">Cada colisión de un protón, coloreada según el proceso.</span></p>
+      <p class="where"><code>analysis/visualization.py</code></p></div>
+    <div class="card"><h4><span lang="en">Stopping power <i>S</i>(<i>E</i>)</span><span lang="es">Poder de frenado <i>S</i>(<i>E</i>)</span></h4>
+      <p><span lang="en">Mean energy lost per nm at energy <i>E</i>.</span><span lang="es">Energía media perdida por nm a la energía <i>E</i>.</span></p>
+      <p class="where"><code>analysis/stopping_power.py</code></p></div>
+    <div class="card"><h4><span lang="en">Depth–dose (Bragg) curve</span><span lang="es">Curva de Bragg (dosis–profundidad)</span></h4>
+      <p><span lang="en">Dose versus depth for a beam.</span><span lang="es">Dosis en función de la profundidad para un haz.</span></p>
+      <p class="where"><code>scoring/dose.py</code>, <code>analysis/beam.py</code></p></div>
+    <div class="card"><h4><span lang="en">Radial dose, 2D dose maps</span><span lang="es">Dosis radial, mapas de dosis 2D</span></h4>
+      <p><span lang="en">Dose versus distance from the track axis.</span><span lang="es">Dosis en función de la distancia al eje de la traza.</span></p>
+      <p class="where"><code>scoring/dose.py</code></p></div>
+    <div class="card"><h4><span lang="en">LET: <i>L̄</i><sub>T</sub>, <i>L̄</i><sub>D</sub></span><span lang="es">TEL: <i>L̄</i><sub>T</sub>, <i>L̄</i><sub>D</sub></span></h4>
+      <p><span lang="en">Track- and dose-averaged linear energy transfer.</span><span lang="es">Transferencia lineal de energía promediada en traza y en dosis.</span></p>
+      <p class="where"><code>scoring/radiobiology.py</code></p></div>
+    <div class="card"><h4><span lang="en">Lineal energy <i>y</i>, specific energy <i>z</i></span><span lang="es">Energía lineal <i>y</i>, energía específica <i>z</i></span></h4>
+      <p><span lang="en">Energy deposited in one small spherical site.</span><span lang="es">Energía depositada en un sitio esférico pequeño.</span></p>
+      <p class="where"><code>scoring/radiobiology.py</code></p></div>
+  </div>
+</section>
+
+<!-- ======================================================= PHYSICS -->
+<section class="block" id="physics">
+  <p class="eyebrow"><span lang="en">The physics model in plain words</span><span lang="es">El modelo físico en palabras simples</span></p>
+  <h2><span lang="en">Seven steps, from free flight to the end of the track</span><span lang="es">Siete pasos, del vuelo libre al final de la traza</span></h2>
+  <ol class="steps">
+    <li><span lang="en"><b>Collisions are discrete events.</b> Between two collisions the proton flies in a straight line and loses no energy. All energy loss happens <i>at</i> collisions.</span>
+        <span lang="es"><b>Las colisiones son eventos discretos.</b> Entre dos colisiones el protón vuela en línea recta y no pierde energía. Toda la pérdida de energía ocurre <i>en</i> las colisiones.</span></li>
+    <li><span lang="en"><b>The distance to the next collision is random.</b> With <i>N</i> molecules per nm³ and total cross section σ<sub>tot</sub>(<i>E</i>), the mean free path is λ = 1/(<i>N</i>σ<sub>tot</sub>); the actual step is drawn from an exponential distribution with that mean.</span>
+        <span lang="es"><b>La distancia a la próxima colisión es aleatoria.</b> Con <i>N</i> moléculas por nm³ y sección eficaz total σ<sub>tot</sub>(<i>E</i>), el camino libre medio es λ = 1/(<i>N</i>σ<sub>tot</sub>); el paso se sortea de una distribución exponencial con esa media.</span></li>
+    <li><span lang="en"><b>Which process happens is random too.</b> One of five processes is chosen with probability σ<sub>c</sub>/σ<sub>tot</sub>.</span>
+        <span lang="es"><b>Qué proceso ocurre también es aleatorio.</b> Se elige uno de cinco procesos con probabilidad σ<sub>c</sub>/σ<sub>tot</sub>.</span></li>
+    <li><span lang="en"><b>The charge state changes along the track.</b> A “proton” track is really a hydrogen ion switching back and forth between H⁺ and H⁰, each with its own cross sections. This matters most at low energy.</span>
+        <span lang="es"><b>El estado de carga cambia a lo largo de la traza.</b> Una traza de «protón» es en realidad un ion de hidrógeno que alterna entre H⁺ y H⁰, cada uno con sus propias secciones eficaces. Esto importa sobre todo a baja energía.</span></li>
+    <li><span lang="en"><b>Energy lost per collision comes from tables.</b> The mean energy left at the site and the mean δ-electron energy are tabulated, from CDW-EIS, Miller–Green and classical models — the same ones TILDA-V uses.</span>
+        <span lang="es"><b>La energía perdida en cada colisión sale de tablas.</b> La energía media dejada en el sitio y la energía media del electrón δ están tabuladas, a partir de modelos CDW-EIS, Miller–Green y clásicos, los mismos que usa TILDA-V.</span></li>
+    <li><span lang="en"><b>δ-electrons are deposited on the spot.</b> An ejected electron gives all its energy to the water where it was created; it is not transported further.</span>
+        <span lang="es"><b>Los electrones δ se depositan en el lugar.</b> Un electrón eyectado entrega toda su energía al agua donde se creó; no se transporta.</span></li>
+    <li><span lang="en"><b>The track ends</b> when the proton’s energy falls below the lowest tabulated energy (8 keV).</span>
+        <span lang="es"><b>La traza termina</b> cuando la energía del protón cae por debajo de la menor energía tabulada (8 keV).</span></li>
+  </ol>
+
+  <h3><span lang="en">The five processes</span><span lang="es">Los cinco procesos</span></h3>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th><span lang="en">Process</span><span lang="es">Proceso</span></th><th><span lang="en">What happens</span><span lang="es">Qué pasa</span></th><th><span lang="en">Charge state</span><span lang="es">Estado de carga</span></th></tr></thead>
+      <tbody>
+        <tr><td><span class="dot" style="background:var(--red)"></span><b><span lang="en">Ionization</span><span lang="es">Ionización</span></b></td><td><span lang="en">an electron is knocked out of the molecule and flies off (a δ-electron)</span><span lang="es">se arranca un electrón de la molécula, que sale despedido (un electrón δ)</span></td><td><span lang="en">unchanged</span><span lang="es">sin cambio</span></td></tr>
+        <tr><td><span class="dot" style="background:var(--green)"></span><b><span lang="en">Excitation</span><span lang="es">Excitación</span></b></td><td><span lang="en">the molecule is left in an excited state</span><span lang="es">la molécula queda en un estado excitado</span></td><td><span lang="en">unchanged</span><span lang="es">sin cambio</span></td></tr>
+        <tr><td><span class="dot" style="background:var(--violet)"></span><b><span lang="en">Electron capture</span><span lang="es">Captura electrónica</span></b></td><td><span lang="en">H⁺ takes an electron from the molecule</span><span lang="es">el H⁺ toma un electrón de la molécula</span></td><td>H⁺ → H⁰</td></tr>
+        <tr><td><span class="dot" style="background:var(--brown)"></span><b><span lang="en">Electron loss</span><span lang="es">Pérdida electrónica</span></b></td><td><span lang="en">H⁰ loses its electron</span><span lang="es">el H⁰ pierde su electrón</span></td><td>H⁰ → H⁺</td></tr>
+        <tr><td><span class="dot" style="background:var(--cyan)"></span><b><span lang="en">Elastic scattering</span><span lang="es">Dispersión elástica</span></b></td><td><span lang="en">the projectile is deflected by the nuclei and transfers a little recoil energy</span><span lang="es">los núcleos desvían al proyectil, que les transfiere un poco de energía de retroceso</span></td><td><span lang="en">unchanged</span><span lang="es">sin cambio</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid-2" style="margin-top:26px">
+    <div class="figure">
+      <div class="toolbar">
+        <strong style="color:var(--navy)"><span lang="en">Cross sections</span><span lang="es">Secciones eficaces</span></strong>
+        <div class="seg" id="xs-q"><button type="button" data-q="1" aria-pressed="true">H⁺</button><button type="button" data-q="0" aria-pressed="false">H⁰</button></div>
+        <div class="seg" id="xs-mode"><button type="button" data-m="xs" aria-pressed="true">σ</button><button type="button" data-m="mfp" aria-pressed="false">λ</button></div>
+      </div>
+      <div class="plot" id="plot-xs"></div>
+      <p class="cap"><span lang="en">σ: effective target area of one water molecule for each process. λ = 1/(<i>N</i>σ<sub>tot</sub>): mean free path between collisions (water: <i>N</i> ≈ 33.4 nm⁻³).</span><span lang="es">σ: área efectiva que una molécula de agua ofrece a cada proceso. λ = 1/(<i>N</i>σ<sub>tot</sub>): camino libre medio entre colisiones (agua: <i>N</i> ≈ 33,4 nm⁻³).</span></p>
+    </div>
+    <div class="figure">
+      <div class="toolbar"><strong style="color:var(--navy)"><span lang="en">Charge-state equilibrium</span><span lang="es">Equilibrio de estados de carga</span></strong></div>
+      <div class="plot" id="plot-charge"></div>
+      <p class="cap"><span lang="en">Fraction of the path travelled as H⁺ or H⁰ in equilibrium, from the balance of capture and loss: <i>f</i><sub>H⁺</sub> = σ<sub>L</sub>/(σ<sub>C</sub>+σ<sub>L</sub>). Below ~100 keV the projectile spends a large part of its path as neutral hydrogen.</span><span lang="es">Fracción del camino recorrida como H⁺ o H⁰ en equilibrio, a partir del balance entre captura y pérdida: <i>f</i><sub>H⁺</sub> = σ<sub>L</sub>/(σ<sub>C</sub>+σ<sub>L</sub>). Por debajo de ~100 keV el proyectil pasa una gran parte del camino como hidrógeno neutro.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= VALIDATION -->
+<section class="block" id="validation">
+  <p class="eyebrow"><span lang="en">Validation</span><span lang="es">Validación</span></p>
+  <h2><span lang="en">Stopping power: an output, not an input</span><span lang="es">Poder de frenado: un resultado, no un dato de entrada</span></h2>
+  <p class="intro">
+    <span lang="en">The stopping power emerges from the sampled collisions. The plot compares the model’s charge-equilibrium stopping power (the exact expectation of its collision rules, which the Monte Carlo reproduces; see the tests) with NIST PSTAR for liquid water and with five sets of measurements. Hover over a point to see its source; click a legend entry to hide it.</span>
+    <span lang="es">El poder de frenado surge de las colisiones muestreadas. El gráfico compara el poder de frenado del modelo en equilibrio de carga (el valor esperado exacto de sus reglas de colisión, que el Monte Carlo reproduce; ver los tests) con NIST PSTAR para agua líquida y con cinco conjuntos de mediciones. Al pasar el cursor sobre un punto se ve su fuente; un clic en la leyenda oculta una serie.</span>
+  </p>
+  <div class="figure" style="margin-top:14px">
+    <div class="toolbar">
+      <label><input type="checkbox" id="sp-charge"> <span lang="en">show the frozen-charge curves (H⁺ only, H⁰ only)</span><span lang="es">mostrar las curvas con carga fija (solo H⁺, solo H⁰)</span></label>
+      <div class="seg" id="sp-scale"><button type="button" data-s="log" aria-pressed="true">log E</button><button type="button" data-s="linear" aria-pressed="false"><span lang="en">linear</span><span lang="es">lineal</span> E</button></div>
+    </div>
+    <div class="plot tall" id="plot-sp"></div>
+  </div>
+  <div class="grid-2" style="margin-top:18px">
+    <div>
+      <ul>
+        <li><span lang="en"><b>From 0.5 to 2 MeV</b> the model agrees with PSTAR within 4%.</span><span lang="es"><b>Entre 0,5 y 2 MeV</b> el modelo coincide con PSTAR dentro del 4 %.</span></li>
+        <li><span lang="en"><b>Near the maximum (20–200 keV)</b> it is 18–32% above PSTAR. The measurements there lie between PSTAR and the model, closer to the model: the model is about 10–15% above them.</span><span lang="es"><b>Cerca del máximo (20–200 keV)</b> está entre 18 y 32 % por encima de PSTAR. Ahí las mediciones quedan entre PSTAR y el modelo, más cerca del modelo: este las supera en un 10–15 %.</span></li>
+        <li><span lang="en"><b>Above 5 MeV</b> it is about 8% below PSTAR.</span><span lang="es"><b>Por encima de 5 MeV</b> queda un 8 % por debajo de PSTAR.</span></li>
+      </ul>
+      <div class="box"><span lang="en">The gaps come from the input cross sections (computed for water <b>vapour</b>, as in TILDA-V), not from the sampling. Notebook 01 (§5–6) discusses them.</span><span lang="es">Las diferencias vienen de las secciones eficaces de entrada (calculadas para <b>vapor</b> de agua, como en TILDA-V), no del muestreo. El notebook 01 (§5–6) las discute.</span></div>
+    </div>
+    <div class="table-wrap">
+      <table class="data" id="sp-table">
+        <thead><tr><th class="num"><span lang="en">Energy (keV)</span><span lang="es">Energía (keV)</span></th><th class="num"><span lang="en">Model</span><span lang="es">Modelo</span> (keV/µm)</th><th class="num">PSTAR (keV/µm)</th><th class="num"><span lang="en">Model / PSTAR</span><span lang="es">Modelo / PSTAR</span></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= DOSE -->
+<section class="block" id="dose">
+  <p class="eyebrow"><span lang="en">Dose and LET</span><span lang="es">Dosis y TEL</span></p>
+  <h2><span lang="en">A beam is many tracks on the same engine</span><span lang="es">Un haz son muchas trazas en el mismo motor</span></h2>
+  <p class="intro">
+    <span lang="en">Scorers watch every deposit as it happens and keep adding up across tracks, so at the end they hold the dose of the whole beam. These results come from a pencil beam of <b id="beam-n1">50</b> protons of 1 MeV, simulated with the code collision by collision.</span>
+    <span lang="es">Los <i>scorers</i> observan cada depósito en el momento en que ocurre y van sumando traza tras traza, así que al final contienen la dosis de todo el haz. Estos resultados vienen de un haz pincel de <b id="beam-n2">50</b> protones de 1 MeV, simulado con el código colisión por colisión.</span>
+  </p>
+  <div class="grid-2" style="margin-top:14px">
+    <div class="figure">
+      <div class="toolbar"><strong style="color:var(--navy)"><span lang="en">Bragg curve</span><span lang="es">Curva de Bragg</span></strong></div>
+      <div class="plot" id="plot-bragg"></div>
+      <p class="cap"><span lang="en">Dose rises slowly with depth and peaks just before the end of the range (about 23 µm at 1 MeV).</span><span lang="es">La dosis crece lentamente con la profundidad y alcanza su máximo justo antes del final del alcance (unos 23 µm a 1 MeV).</span></p>
+    </div>
+    <div class="figure">
+      <div class="toolbar"><strong style="color:var(--navy)"><span lang="en">Radial dose</span><span lang="es">Dosis radial</span></strong></div>
+      <div class="plot" id="plot-radial"></div>
+      <p class="cap"><span lang="en">Dose per proton versus distance from the track axis, whole track. Since δ-electrons are not transported, the dose is concentrated within a few nm of the axis (see <a href="#limits">limitations</a>).</span><span lang="es">Dosis por protón en función de la distancia al eje, traza completa. Como los electrones δ no se transportan, la dosis queda concentrada a pocos nm del eje (ver <a href="#limits">limitaciones</a>).</span></p>
+    </div>
+  </div>
+  <div class="key" id="let-key"></div>
+
+  <h3><span lang="en">One whole 1 MeV track, from micrometres to nanometres</span><span lang="es">Una traza completa de 1 MeV, de micrómetros a nanómetros</span></h3>
+  <p class="intro"><span lang="en">All <b id="t1-n-en">28 000</b> collisions of a single 1 MeV proton. Drag to zoom: at the scale of the whole track it looks like a line; zoom into a few nanometres to see the individual collisions, and into the last micrometre to see them crowd together where the proton slows down.</span><span lang="es">Las <b id="t1-n-es">28 000</b> colisiones de un único protón de 1 MeV. Arrastrar el cursor hace zoom: a la escala de la traza completa parece una línea; a unos pocos nanómetros se ven las colisiones individuales, y en el último micrómetro, cómo se amontonan donde el protón se frena.</span></p>
+  <div class="figure">
+    <div class="toolbar">
+      <div class="seg" id="t1-zoom">
+        <button type="button" data-z="all" aria-pressed="true"><span lang="en">whole track</span><span lang="es">traza completa</span></button>
+        <button type="button" data-z="start" aria-pressed="false"><span lang="en">first 100 nm</span><span lang="es">primeros 100 nm</span></button>
+        <button type="button" data-z="end" aria-pressed="false"><span lang="en">last 1 µm</span><span lang="es">último µm</span></button>
+      </div>
+    </div>
+    <div class="plot" id="plot-track1"></div>
+  </div>
+</section>
+
+<!-- ======================================================= CODE -->
+<section class="block" id="code">
+  <p class="eyebrow"><span lang="en">How the code is organised</span><span lang="es">Cómo está organizado el código</span></p>
+  <h2><span lang="en">Small packages, small interfaces</span><span lang="es">Paquetes chicos, interfaces chicas</span></h2>
+  <p class="intro"><span lang="en">The package is split by responsibility. Each part only talks to the others through a small interface, so you can read one without the rest. Every sub-package has its own README with the physics and the derivations.</span><span lang="es">El paquete está dividido por responsabilidad. Cada parte se comunica con las demás a través de una interfaz chica, así que se puede leer una sin las otras. Cada subpaquete tiene su propio README con la física y las deducciones.</span></p>
+
+  <div class="figure arch" style="margin-top:14px">
+    <svg viewBox="0 0 1000 312"role="img" aria-label="Package structure">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#5b6475"/></marker>
+      </defs>
+      <g fill="none" stroke="#5b6475" stroke-width="1.8">
+        <path d="M150 150 H205" marker-end="url(#ar)"/>
+        <path d="M375 150 H430" marker-end="url(#ar)"/>
+        <path d="M600 128 L660 70" marker-end="url(#ar)"/>
+        <path d="M600 150 H805" marker-end="url(#ar)"/>
+        <path d="M600 172 L660 230" marker-end="url(#ar)"/>
+        <path d="M290 240 V198" stroke-dasharray="5 5" marker-end="url(#ar)"/>
+        <path d="M330 290 V302 H960 V204" stroke-dasharray="5 5" marker-end="url(#ar)"/>
+      </g>
+      <text x="700" y="140" font-size="13" fill="#5b6475" text-anchor="middle" font-style="italic" data-en="every deposit" data-es="cada depósito"></text>
+      <!-- boxes -->
+      <g font-size="15">
+        <rect x="20" y="105" width="130" height="90" rx="12" fill="#fff4dc" stroke="#f5a524" stroke-width="2"/>
+        <text x="85" y="135" text-anchor="middle" font-weight="700" fill="#0b1d3a">data/</text>
+        <text x="85" y="157" text-anchor="middle" font-size="12.5" fill="#5b6475" data-en="cross-section and" data-es="tablas de secciones"></text>
+        <text x="85" y="174" text-anchor="middle" font-size="12.5" fill="#5b6475" data-en="mean-energy tables" data-es="eficaces y energías"></text>
+
+        <rect x="208" y="105" width="167" height="90" rx="12" fill="#f4f6fa" stroke="#16305c" stroke-width="2"/>
+        <text x="291" y="135" text-anchor="middle" font-weight="700" fill="#0b1d3a">physics/</text>
+        <text x="291" y="157" text-anchor="middle" font-size="11.5" fill="#5b6475" data-en="cross sections, medium," data-es="secciones eficaces, medio,"></text>
+        <text x="291" y="174" text-anchor="middle" font-size="11.5" fill="#5b6475" data-en="energy loss, angles" data-es="pérdida de energía, ángulos"></text>
+
+        <rect x="433" y="105" width="167" height="90" rx="12" fill="#0b1d3a"/>
+        <text x="516" y="135" text-anchor="middle" font-weight="700" fill="#f5a524">transport/</text>
+        <text x="516" y="157" text-anchor="middle" font-size="12.5" fill="#c9d4ee" data-en="particle state," data-es="estado de la partícula,"></text>
+        <text x="516" y="174" text-anchor="middle" font-size="12.5" fill="#c9d4ee" data-en="collision loop" data-es="bucle de colisiones"></text>
+
+        <rect x="663" y="30" width="167" height="80" rx="12" fill="#f4f6fa" stroke="#16305c" stroke-width="2"/>
+        <text x="746" y="62" text-anchor="middle" font-weight="700" fill="#0b1d3a">secondaries/</text>
+        <text x="746" y="84" text-anchor="middle" font-size="12.5" fill="#5b6475" data-en="δ-electron model" data-es="modelo del electrón δ"></text>
+
+        <rect x="808" y="120" width="172" height="80" rx="12" fill="#f4f6fa" stroke="#1597b5" stroke-width="2"/>
+        <text x="894" y="152" text-anchor="middle" font-weight="700" fill="#0b1d3a">scoring/</text>
+        <text x="894" y="174" text-anchor="middle" font-size="12.5" fill="#5b6475" data-en="dose, LET, lineal energy" data-es="dosis, TEL, energía lineal"></text>
+
+        <rect x="663" y="200" width="167" height="80" rx="12" fill="#f4f6fa" stroke="#16305c" stroke-width="2"/>
+        <text x="746" y="228" text-anchor="middle" font-weight="700" fill="#0b1d3a">analysis/</text>
+        <text x="746" y="249" text-anchor="middle" font-size="12.5" fill="#5b6475" data-en="beams, stopping power," data-es="haces, poder de frenado,"></text>
+        <text x="746" y="266" text-anchor="middle" font-size="12.5" fill="#5b6475" data-en="plots" data-es="gráficos"></text>
+
+        <rect x="210" y="240" width="160" height="50" rx="10" fill="#fff" stroke="#5b6475" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="290" y="262" text-anchor="middle" font-weight="700" fill="#0b1d3a" font-size="14">constants.py</text>
+        <text x="290" y="280" text-anchor="middle" font-size="12" fill="#5b6475" data-en="units and constants" data-es="unidades y constantes"></text>
+      </g>
+      <path d="M894 200 V240 H833" fill="none" stroke="#5b6475" stroke-width="1.8" marker-end="url(#ar)"/>
+    </svg>
+  </div>
+
+  <div class="grid-2" style="margin-top:22px">
+    <div>
+      <h3 style="margin-top:0"><span lang="en">What happens in one collision</span><span lang="es">Qué pasa en una colisión</span></h3>
+      <p class="small muted"><span lang="en">One pass of the loop in <code>transport/engine.py</code> (<code>TrackEngine._transport_proton</code>) is one collision:</span><span lang="es">Una pasada del bucle de <code>transport/engine.py</code> (<code>TrackEngine._transport_proton</code>) es una colisión:</span></p>
+      <ol class="flow">
+        <li class="decide"><span lang="en">Proton at position <b>r</b>, energy <i>E</i>, charge <i>q</i>. Is <i>E</i> inside the tabulated range? If not, stop.</span><span lang="es">Protón en la posición <b>r</b>, energía <i>E</i>, carga <i>q</i>. ¿Está <i>E</i> dentro del rango tabulado? Si no, se detiene.</span></li>
+        <li><span lang="en">Sample the step <i>s</i> (exponential, mean 1/<i>N</i>σ<sub>tot</sub>) — <code>sampler.sample_step</code></span><span lang="es">Sortear el paso <i>s</i> (exponencial, media 1/<i>N</i>σ<sub>tot</sub>) — <code>sampler.sample_step</code></span></li>
+        <li><span lang="en">Move: <b>r</b> ← <b>r</b> + <i>s</i> · direction (no energy lost in flight)</span><span lang="es">Mover: <b>r</b> ← <b>r</b> + <i>s</i> · dirección (sin pérdida de energía en vuelo)</span></li>
+        <li><span lang="en">Choose the process <i>c</i> with probability σ<sub>c</sub>/σ<sub>tot</sub> — <code>sampler.select_channel</code></span><span lang="es">Elegir el proceso <i>c</i> con probabilidad σ<sub>c</sub>/σ<sub>tot</sub> — <code>sampler.select_channel</code></span></li>
+        <li><span lang="en">Apply it: subtract the energy lost; capture/loss change <i>q</i>; elastic changes the direction; ionization creates a δ-electron</span><span lang="es">Aplicarlo: restar la energía perdida; captura/pérdida cambian <i>q</i>; la elástica cambia la dirección; la ionización crea un electrón δ</span></li>
+        <li><span lang="en">Record the deposit and notify every scorer; put the δ-electron, if any, on the stack</span><span lang="es">Registrar el depósito y avisar a cada <i>scorer</i>; poner el electrón δ, si lo hay, en la pila</span></li>
+        <li class="loop"><span lang="en">↻ back to the top, until the proton stops</span><span lang="es">↻ volver al principio, hasta que el protón se detiene</span></li>
+      </ol>
+    </div>
+    <div>
+      <h3 style="margin-top:0"><span lang="en">Every simulation in four steps</span><span lang="es">Toda simulación en cuatro pasos</span></h3>
+      <p class="small muted"><span lang="en">Load the tables, attach a scorer, transport, plot. A beam with LET bookkeeping is one call:</span><span lang="es">Cargar las tablas, enganchar un <i>scorer</i>, transportar, graficar. Un haz con el cálculo de TEL es una sola llamada:</span></p>
+<pre class="code"><span class="k">from</span> ion_track_mc.analysis.beam <span class="k">import</span> run_beam
+
+<span class="c"># 1. load the tables: see notebooks/minimal_script.py</span>
+<span class="c"># 2. a scorer watches every deposit: dose vs depth</span>
+bragg = make_bragg_curve_scorer(
+    WATER, z_edges=np.linspace(0, 26e3, 53),
+    transverse_half_width_nm=1e6)
+<span class="c"># 3. transport 30 protons of 1 MeV</span>
+res = run_beam(WATER, xs, edep_tables, eemean_tables,
+               n_particles=30, E_beam_eV=1e6,
+               scorers=[bragg], seed=0,
+               let_segment_length_nm=1000.0)
+<span class="c"># 4. read the results</span>
+dose = bragg.dose_Gy()[0, 0, :]          <span class="c"># Gy per depth bin</span>
+print(res.track_averaged_LET(),          <span class="c"># eV/nm</span>
+      res.dose_averaged_LET())</pre>
+      <p class="small muted"><span lang="en">Units inside the code: energy in eV, length in nm, cross sections in nm². LET in eV/nm equals keV/µm.</span><span lang="es">Unidades dentro del código: energía en eV, longitud en nm, secciones eficaces en nm². La TEL en eV/nm es igual a keV/µm.</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= START -->
+<section class="block" id="start">
+  <p class="eyebrow"><span lang="en">Get started</span><span lang="es">Empezar</span></p>
+  <h2><span lang="en">In the browser, on your computer, or as a library</span><span lang="es">En el navegador, en una computadora propia o como biblioteca</span></h2>
+
+  <h3><span lang="en">Three guided notebooks — nothing to install in Colab</span><span lang="es">Tres notebooks guiados: en Colab no hay que instalar nada</span></h3>
+  <div class="grid-3">
+    <div class="card nb">
+      <h4>01 · <span lang="en">Full pipeline walkthrough</span><span lang="es">Recorrido completo</span></h4>
+      <p><span lang="en">Cross sections and mean free path, one proton’s track, stopping power (Monte Carlo vs analytic, vs NIST PSTAR, vs experiment), charge-state equilibrium, a Bragg curve, and how LET depends on the scale it is measured at.</span><span lang="es">Secciones eficaces y camino libre medio, la traza de un protón, poder de frenado (Monte Carlo vs analítico, vs NIST PSTAR, vs experimento), equilibrio de carga, una curva de Bragg, y cómo la TEL depende de la escala en que se mide.</span></p>
+      <p class="meta">⏱ ~4 min</p>
+      <div class="links">
+        <a class="pill colab" href="https://colab.research.google.com/github/juanmontiz/ion-track-mc/blob/main/notebooks/01_full_pipeline_walkthrough.ipynb" target="_blank" rel="noopener"><span lang="en">Open in Colab</span><span lang="es">Abrir en Colab</span></a>
+        <a class="pill" href="https://github.com/juanmontiz/ion-track-mc/blob/main/notebooks/01_full_pipeline_walkthrough.ipynb" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+    <div class="card nb">
+      <h4>02 · <span lang="en">Beam simulation</span><span lang="es">Simulación de un haz</span></h4>
+      <p><span lang="en">500 protons at 200 keV/u with a 5% energy spread: beam Bragg curve and radial dose, pencil-beam and broad-beam dose maps, energy-loss spread between protons, beam-averaged LET.</span><span lang="es">500 protones de 200 keV/u con una dispersión de energía del 5 %: curva de Bragg y dosis radial del haz, mapas de dosis de haz pincel y haz ancho, dispersión de la pérdida de energía entre protones, TEL promediada en el haz.</span></p>
+      <p class="meta">⏱ ~14 min <span lang="en">(lower <code>N_PARTICLES</code> to speed it up)</span><span lang="es">(bajar <code>N_PARTICLES</code> para acelerarlo)</span></p>
+      <div class="links">
+        <a class="pill colab" href="https://colab.research.google.com/github/juanmontiz/ion-track-mc/blob/main/notebooks/02_beam_simulation.ipynb" target="_blank" rel="noopener"><span lang="en">Open in Colab</span><span lang="es">Abrir en Colab</span></a>
+        <a class="pill" href="https://github.com/juanmontiz/ion-track-mc/blob/main/notebooks/02_beam_simulation.ipynb" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+    <div class="card nb">
+      <h4>03 · <span lang="en">Track visualization</span><span lang="es">Visualización de trazas</span></h4>
+      <p><span lang="en">What a track looks like, collision by collision, at low (15 keV/u) and high (500 keV/u) energy.</span><span lang="es">Cómo se ve una traza, colisión por colisión, a baja (15 keV/u) y alta (500 keV/u) energía.</span></p>
+      <p class="meta">⏱ ~10 s</p>
+      <div class="links">
+        <a class="pill colab" href="https://colab.research.google.com/github/juanmontiz/ion-track-mc/blob/main/notebooks/03_track_visualization.ipynb" target="_blank" rel="noopener"><span lang="en">Open in Colab</span><span lang="es">Abrir en Colab</span></a>
+        <a class="pill" href="https://github.com/juanmontiz/ion-track-mc/blob/main/notebooks/03_track_visualization.ipynb" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:8px">
+    <div>
+      <h3><span lang="en">On your computer</span><span lang="es">En una computadora propia</span></h3>
+      <p class="small muted"><span lang="en">With Python ≥ 3.10. <code>setup.sh</code> creates a virtual environment and installs everything.</span><span lang="es">Con Python ≥ 3.10. <code>setup.sh</code> crea un entorno virtual e instala todo.</span></p>
+<div class="code-wrap"><pre class="code" id="code-local">git clone https://github.com/juanmontiz/ion-track-mc
+cd ion-track-mc
+./setup.sh             <span class="c"># creates .venv, installs everything</span>
+<span class="c"># one 1 MeV proton -&gt; bragg_curve.png</span>
+.venv/bin/python notebooks/minimal_script.py
+.venv/bin/jupyter lab notebooks/
+.venv/bin/pytest -q    <span class="c"># 178 tests, under a minute</span></pre><button class="copy" type="button" data-copy="code-local"></button></div>
+    </div>
+    <div>
+      <h3><span lang="en">As a library</span><span lang="es">Como biblioteca</span></h3>
+      <p class="small muted"><span lang="en">In an existing environment (the data tables are installed with the package):</span><span lang="es">En un entorno existente (las tablas de datos se instalan con el paquete):</span></p>
+<div class="code-wrap"><pre class="code" id="code-pip">pip install git+https://github.com/juanmontiz/ion-track-mc</pre><button class="copy" type="button" data-copy="code-pip"></button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= TUTORIAL -->
+<section class="block" id="tutorial">
+  <p class="eyebrow"><span lang="en">Tutorial</span><span lang="es">Tutorial</span></p>
+  <h2><span lang="en">New to the code? Start with the slides</span><span lang="es">¿Primera vez con el código? Empezar por las diapositivas</span></h2>
+  <div class="tutorial">
+    <a class="cover" data-href-en="docs/tutorial.pdf" data-href-es="docs/tutorial_es.pdf" href="docs/tutorial.pdf" target="_blank" rel="noopener">
+      <img lang="en" src="docs/tutorial_cover.png" alt="First slide of the tutorial" width="720" height="405" loading="lazy">
+      <img lang="es" src="docs/tutorial_es_cover.png" alt="Primera diapositiva del tutorial" width="720" height="405" loading="lazy">
+    </a>
+    <div>
+      <p><span lang="en">26 slides (~20 min) that go from the physics in brief to installing the code, running a first simulation and reading the results. Available in English and Spanish.</span><span lang="es">26 diapositivas (~20 min) que van de la física en breve a instalar el código, correr una primera simulación y leer los resultados. Disponible en inglés y en español.</span></p>
+      <ol class="toc">
+        <li><span lang="en">What the code does</span><span lang="es">Qué hace el código</span></li>
+        <li><span lang="en">The physics in brief</span><span lang="es">La física en breve</span></li>
+        <li><span lang="en">Installation</span><span lang="es">Instalación</span></li>
+        <li><span lang="en">Your first simulation</span><span lang="es">La primera simulación</span></li>
+        <li><span lang="en">Reading the results</span><span lang="es">Cómo leer los resultados</span></li>
+        <li><span lang="en">Limits and next steps</span><span lang="es">Límites y próximos pasos</span></li>
+      </ol>
+      <div class="btns">
+        <a class="pill" href="docs/tutorial.pdf" target="_blank" rel="noopener">📄 English (PDF)</a>
+        <a class="pill" href="docs/tutorial_es.pdf" target="_blank" rel="noopener">📄 Español (PDF)</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= LIMITS -->
+<section class="block" id="limits">
+  <p class="eyebrow"><span lang="en">Limitations</span><span lang="es">Limitaciones</span></p>
+  <h2><span lang="en">Know these before you interpret a result</span><span lang="es">Para tener en cuenta antes de interpretar un resultado</span></h2>
+  <ul class="limits">
+    <li><span lang="en"><b>Electrons are not transported.</b> δ-electron energy never leaves the track core: dose very close to the axis is overestimated, and dose far from it is missing. Integrated quantities (Bragg curve, LET) are much less affected.</span><span lang="es"><b>Los electrones no se transportan.</b> La energía de los electrones δ nunca sale del núcleo de la traza: la dosis muy cerca del eje está sobreestimada y falta la dosis lejos de él. Las magnitudes integradas (curva de Bragg, TEL) se ven mucho menos afectadas.</span></li>
+    <li><span lang="en"><b>Liquid water only</b>, modelled with cross sections computed for water vapour (as in TILDA-V). No tissue, PMMA or DNA geometry.</span><span lang="es"><b>Solo agua líquida</b>, modelada con secciones eficaces calculadas para vapor de agua (como en TILDA-V). Sin tejido, PMMA ni geometría de ADN.</span></li>
+    <li><span lang="en"><b>Hydrogen projectiles only</b> (H⁺/H⁰); no heavier ions.</span><span lang="es"><b>Solo proyectiles de hidrógeno</b> (H⁺/H⁰); sin iones más pesados.</span></li>
+    <li><span lang="en"><b>Energy range 8 keV to 300 MeV.</b> Outside the tabulated range the code stops rather than extrapolate.</span><span lang="es"><b>Rango de energía de 8 keV a 300 MeV.</b> Fuera del rango tabulado el código se detiene en lugar de extrapolar.</span></li>
+    <li><span lang="en"><b>Mean energy losses.</b> For ionization, excitation, capture and loss the energy lost is the tabulated mean; only elastic scattering has a random energy transfer.</span><span lang="es"><b>Pérdidas de energía medias.</b> En ionización, excitación, captura y pérdida, la energía perdida es la media tabulada; solo la dispersión elástica tiene una transferencia de energía aleatoria.</span></li>
+    <li><span lang="en"><b>No microdosimetric spectra.</b> The distributions <i>f</i>(<i>y</i>), <i>d</i>(<i>y</i>) and models built on them (e.g. MKM) are not implemented.</span><span lang="es"><b>Sin espectros microdosimétricos.</b> Las distribuciones <i>f</i>(<i>y</i>), <i>d</i>(<i>y</i>) y los modelos basados en ellas (p. ej., MKM) no están implementados.</span></li>
+    <li><span lang="en"><b>It is a teaching code.</b> Written to be read, single-threaded Python: a beam of a few hundred protons takes minutes, not seconds.</span><span lang="es"><b>Es un código para enseñar.</b> Escrito para leerse, en Python de un solo hilo: un haz de unos cientos de protones tarda minutos, no segundos.</span></li>
+  </ul>
+</section>
+
+<!-- ======================================================= ABOUT / CITE -->
+<section class="block" id="cite">
+  <p class="eyebrow"><span lang="en">Authors and citation</span><span lang="es">Autores y cita</span></p>
+  <h2><span lang="en">Who made it, and how to cite it</span><span lang="es">Quién lo hizo y cómo citarlo</span></h2>
+  <div class="grid-2">
+    <div>
+      <p><b>Juan Manuel Monti</b> <span class="muted small">— Instituto de Física Rosario (IFIR, CONICET-UNR) <span lang="en">and</span><span lang="es">y</span> FCEIA, Universidad Nacional de Rosario</span><br>
+         <b>Michele Arcangelo Quinto</b> <span class="muted small">— Instituto de Física Rosario (IFIR, CONICET-UNR)</span></p>
+      <p><span lang="en">The collision model and all cross-section and mean-energy tables come from TILDA-V (Quinto <i>et al.</i> 2017). The code was written for the course <i>Interacción radiación–materia. Aplicación a la radiobiología</i> (Universidad Nacional de Rosario), taught by Christophe Champion (Université de Bordeaux), Michele A. Quinto and Juan M. Monti.</span><span lang="es">El modelo de colisiones y todas las tablas de secciones eficaces y de energías medias vienen de TILDA-V (Quinto <i>et al.</i> 2017). El código se escribió para el curso <i>Interacción radiación–materia. Aplicación a la radiobiología</i> (Universidad Nacional de Rosario), dictado por Christophe Champion (Université de Bordeaux), Michele A. Quinto y Juan M. Monti.</span></p>
+      <h3><span lang="en">Further reading</span><span lang="es">Para leer más</span></h3>
+      <ul class="small">
+        <li>C. Champion <i>et al.</i>, “Water versus DNA: new insights into proton track structure modelling in radiobiology and radiotherapy”, <i>Phys. Med. Biol.</i> <b>60</b>, 7805 (2015).</li>
+        <li>M. E. Alcocer-Ávila, <i>Monte Carlo modeling of targeted radionuclide therapy of micrometastases</i>, PhD thesis, Université de Bordeaux (2021).</li>
+        <li>A. Larouze, <i>Dosimétrie de radioéléments émetteurs alpha pour la radiothérapie interne vectorisée</i>, PhD thesis, Université de Bordeaux (2024).</li>
+      </ul>
+    </div>
+    <div>
+      <p><span lang="en">If you use this code, cite the software together with the model it implements:</span><span lang="es">Si utiliza este código, cite el software junto con el modelo que implementa:</span></p>
+      <div class="cite-box">
+        <p id="cite-sw">Monti, J. M., &amp; Quinto, M. A. (2026). <i>ion-track-mc: an educational event-by-event Monte Carlo code for proton tracks in liquid water</i> (Version 0.1.0) [Computer software]. https://github.com/juanmontiz/ion-track-mc</p>
+        <button class="copy" type="button" data-copy="cite-sw"></button>
+      </div>
+      <div class="cite-box">
+        <p id="cite-paper">M. A. Quinto, J. M. Monti, P. F. Weck, O. A. Fojón, J. Hanssen, R. D. Rivarola, P. Senot and C. Champion, “Monte Carlo simulation of proton track structure in biological matter”, <i>Eur. Phys. J. D</i> <b>71</b>, 130 (2017). <a href="https://doi.org/10.1140/epjd/e2017-70709-6" target="_blank" rel="noopener">doi:10.1140/epjd/e2017-70709-6</a></p>
+        <button class="copy" type="button" data-copy="cite-paper"></button>
+      </div>
+      <div class="cite-box">
+<pre id="cite-bib">@software{Monti_ion_track_mc_2026,
+  author  = {Monti, Juan Manuel and Quinto, Michele Arcangelo},
+  title   = {{ion-track-mc: an educational event-by-event Monte Carlo
+             code for proton tracks in liquid water}},
+  version = {0.1.0},
+  year    = {2026},
+  license = {MIT},
+  url     = {https://github.com/juanmontiz/ion-track-mc}
+}</pre>
+        <button class="copy" type="button" data-copy="cite-bib" data-bib="1"></button>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="site">
+  <div class="inner">
+    <span>ion-track-mc v0.1.0 · J. M. Monti, M. A. Quinto · Instituto de Física Rosario (CONICET-UNR)</span>
+    <span><a href="https://github.com/juanmontiz/ion-track-mc" target="_blank" rel="noopener"><span lang="en">Source code on GitHub</span><span lang="es">Código en GitHub</span></a> · <span lang="en">MIT licence</span><span lang="es">licencia MIT</span> · <a href="#cite"><span lang="en">How to cite</span><span lang="es">Cómo citar</span></a></span>
+  </div>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="plotly.min.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
